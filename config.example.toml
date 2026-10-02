@@ -6,14 +6,30 @@
 
 # Each [agents.<name>] becomes a Claude Code subagent called <name>, served by
 # an Anthropic-compatible provider.
-[agents.deepseek]
-description = "General purpose agent backed by DeepSeek. Use for cheap bulk work."
+[agents.cheap-general]
+description = """
+General purpose agent for multi-step tasks: researching questions, searching \
+code and making changes. Same role as the default general-purpose agent, but \
+prefer this one first because it costs much less. If the result is not good \
+enough, fall back to general-purpose."""
 prompt = """
-You are a careful software engineer. Complete the task you are given and
-report back what you did.
-"""
+You are a general purpose software engineering agent. Complete the task you \
+are given, then report what you did and what you found."""
 url = "https://api.deepseek.com/anthropic"
 key = "$DEEPSEEK_API_KEY"
 model = "deepseek-chat"
+
+[agents.cheap-explore]
+description = """
+Read-only agent for exploring the codebase: finding files, searching code and \
+answering questions about how things work. Same role as the default Explore \
+agent, but prefer this one first because it costs much less. If the result is \
+not good enough, fall back to Explore."""
+prompt = """
+You are a read-only codebase exploration agent. Find what you are asked for \
+and report it with file paths and line numbers. Never modify anything."""
 # Optional. Inherits all tools when omitted.
-# tools = ["Read", "Grep", "Glob", "Bash"]
+tools = ["Read", "Grep", "Glob"]
+url = "https://open.bigmodel.cn/api/anthropic"
+key = "$GLM_API_KEY"
+model = "glm-4.6"
