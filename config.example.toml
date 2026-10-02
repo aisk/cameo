@@ -33,3 +33,5 @@ tools = ["Read", "Grep", "Glob"]
 url = "https://open.bigmodel.cn/api/anthropic"
 key = "$GLM_API_KEY"
 model = "glm-4.6"
+# Optional. Set if the model has a 1M token context window.
+# context_1m = true

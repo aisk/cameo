@@ -20,7 +20,7 @@ const defaultUpstream = "https://api.anthropic.com"
 // can tell cameo subagents apart from real Claude models.
 const modelPrefix = "cameo-"
 
-// context1M is the suffix Claude Code reads off a model name to give it a 1M
+// context1M is the suffix Claude Code reads off a model ID to give it a 1M
 // token context window.
 const context1M = "[1m]"
 
@@ -42,9 +42,9 @@ type Agent struct {
 	// Key may reference environment variables, e.g. "$DEEPSEEK_API_KEY".
 	Key   string `toml:"key"`
 	Model string `toml:"model"`
-	// Context1M is set when Model was written with the "[1m]" suffix, which is
-	// stripped from Model and handed to Claude Code instead.
-	Context1M bool `toml:"-"`
+	// Context1M makes Claude Code treat the model as having a 1M token
+	// context window.
+	Context1M bool `toml:"context_1m"`
 }
 
 var agentNameRe = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)
@@ -89,7 +89,9 @@ func loadConfig(path string) (*Config, error) {
 			return nil, fmt.Errorf("%s: invalid agent name %q", path, name)
 		}
 		a.Key = os.ExpandEnv(a.Key)
-		a.Model, a.Context1M = strings.CutSuffix(a.Model, context1M)
+		if strings.HasSuffix(a.Model, context1M) {
+			return nil, fmt.Errorf("%s: agents.%s: drop %q from model and set context_1m = true instead", path, name, context1M)
+		}
 		for field, value := range map[string]string{
 			"description": a.Description,
 			"prompt":      a.Prompt,

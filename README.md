@@ -53,6 +53,7 @@ model = "glm-4.6"
 | `url` | Provider base URL, the value you would put in `ANTHROPIC_BASE_URL`. |
 | `key` | Provider API key. Environment variables are expanded. |
 | `model` | Model name at the provider. |
+| `context_1m` | Optional. Set to `true` if the model has a 1M token context window. |
 
 Agent names are free to choose. Using the name of a built-in agent (`Explore`, `general-purpose`, `Plan`) replaces that agent instead of adding an alternative next to it.
 
