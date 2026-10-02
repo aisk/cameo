@@ -108,7 +108,8 @@ func (p *Proxy) match(r *http.Request) (*route, error) {
 	if json.Unmarshal(body, &head) != nil {
 		return nil, nil
 	}
-	rt := p.routes[head.Model]
+	// Claude Code may or may not strip the 1M suffix before sending.
+	rt := p.routes[strings.TrimSuffix(head.Model, context1M)]
 	if rt == nil {
 		return nil, nil
 	}

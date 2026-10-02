@@ -106,6 +106,18 @@ func TestAgentModelGoesToProvider(t *testing.T) {
 	}
 }
 
+func TestAgentModelWith1MSuffix(t *testing.T) {
+	proxyURL, upstream, provider := setup(t)
+	post(t, proxyURL+"/secret/v1/messages", `{"model":"cameo-helper[1m]","max_tokens":1}`)
+
+	if upstream.path != "" {
+		t.Fatalf("upstream was called: %+v", upstream)
+	}
+	if !strings.Contains(provider.body, `"model":"third-party-model"`) {
+		t.Errorf("body = %s", provider.body)
+	}
+}
+
 func TestRejectsMissingToken(t *testing.T) {
 	proxyURL, upstream, provider := setup(t)
 	for _, path := range []string{"/v1/messages", "/secretx/v1/messages"} {

@@ -106,11 +106,15 @@ func agentsJSON(cfg *Config) (string, error) {
 	}
 	defs := make(map[string]agentDef, len(cfg.Agents))
 	for name, a := range cfg.Agents {
+		model := modelPrefix + name
+		if a.Context1M {
+			model += context1M
+		}
 		defs[name] = agentDef{
 			Description: a.Description,
 			Prompt:      a.Prompt,
 			Tools:       a.Tools,
-			Model:       modelPrefix + name,
+			Model:       model,
 		}
 	}
 	out, err := json.Marshal(defs)

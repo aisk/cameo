@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -18,6 +19,10 @@ const defaultUpstream = "https://api.anthropic.com"
 // modelPrefix namespaces the model IDs handed to Claude Code, so the proxy
 // can tell cameo subagents apart from real Claude models.
 const modelPrefix = "cameo-"
+
+// context1M is the suffix Claude Code reads off a model name to give it a 1M
+// token context window.
+const context1M = "[1m]"
 
 type Config struct {
 	// Upstream is where every request that does not belong to a cameo
@@ -37,6 +42,9 @@ type Agent struct {
 	// Key may reference environment variables, e.g. "$DEEPSEEK_API_KEY".
 	Key   string `toml:"key"`
 	Model string `toml:"model"`
+	// Context1M is set when Model was written with the "[1m]" suffix, which is
+	// stripped from Model and handed to Claude Code instead.
+	Context1M bool `toml:"-"`
 }
 
 var agentNameRe = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)
@@ -81,6 +89,7 @@ func loadConfig(path string) (*Config, error) {
 			return nil, fmt.Errorf("%s: invalid agent name %q", path, name)
 		}
 		a.Key = os.ExpandEnv(a.Key)
+		a.Model, a.Context1M = strings.CutSuffix(a.Model, context1M)
 		for field, value := range map[string]string{
 			"description": a.Description,
 			"prompt":      a.Prompt,
