@@ -1,0 +1,19 @@
+# Copy to ~/.config/cameo/config.toml, or point CAMEO_CONFIG at it.
+
+# Where requests for Claude models are forwarded, untouched. Defaults to
+# $ANTHROPIC_BASE_URL if set, otherwise https://api.anthropic.com.
+# upstream = "https://api.anthropic.com"
+
+# Each [agents.<name>] becomes a Claude Code subagent called <name>, served by
+# an Anthropic-compatible provider.
+[agents.deepseek]
+description = "General purpose agent backed by DeepSeek. Use for cheap bulk work."
+prompt = """
+You are a careful software engineer. Complete the task you are given and
+report back what you did.
+"""
+url = "https://api.deepseek.com/anthropic"
+key = "$DEEPSEEK_API_KEY"
+model = "deepseek-chat"
+# Optional. Inherits all tools when omitted.
+# tools = ["Read", "Grep", "Glob", "Bash"]
