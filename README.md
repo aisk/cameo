@@ -28,7 +28,7 @@ You are a general purpose software engineering agent. Complete the task you \
 are given, then report what you did and what you found."""
 url = "https://api.deepseek.com/anthropic"
 key = "$DEEPSEEK_API_KEY"
-model = "deepseek-chat"
+model = "deepseek-flash"
 
 [agents.cheap-explore]
 description = """
@@ -42,7 +42,7 @@ and report it with file paths and line numbers. Never modify anything."""
 tools = ["Read", "Grep", "Glob"]
 url = "https://open.bigmodel.cn/api/anthropic"
 key = "$GLM_API_KEY"
-model = "glm-4.6"
+model = "glm-5.3"
 ```
 
 | Field | Meaning |
