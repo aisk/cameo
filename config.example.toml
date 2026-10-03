@@ -35,3 +35,18 @@ key = "$GLM_API_KEY"
 model = "glm-5.3"
 # Optional. Set if the model has a 1M token context window.
 # context_1m = true
+
+[agents.branch-cleaner]
+description = """
+Cleans up local git branches of the current project. Use it whenever the user \
+asks to tidy up, prune or delete stale local branches."""
+prompt = """
+You clean up local git branches. Run `git fetch --prune`, then delete local \
+branches that are already merged into the main branch, using `git branch -d` \
+only. Never use `-D`, never delete the current branch or the main branch, and \
+never touch remote branches. Report which branches you deleted and which ones \
+you kept and why."""
+tools = ["Bash"]
+url = "https://api.deepseek.com/anthropic"
+key = "$DEEPSEEK_API_KEY"
+model = "deepseek-flash"

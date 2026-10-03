@@ -1,6 +1,8 @@
 # cameo
 
-Run Claude Code with subagents served by other LLM providers.
+cameo, named after the guest appearance in film, lets models from other LLM providers play subagents in Claude Code. This way you can use subscriptions from several AI providers together, with a SOTA model like Claude directing cheaper models that take over the simple and well-defined work.
+
+<img src="https://cdn1.faroutmagazine.co.uk/uploads/1/2020/04/Hitchcock.jpg" alt="Alfred Hitchcock, known for cameos in his own films" width="100%">
 
 cameo starts a local proxy, points Claude Code at it, and registers the subagents from your config. Requests for Claude models are forwarded to Anthropic untouched. Requests from a cameo subagent go to the provider configured for it. The main session stays on Claude while routine work such as exploring, executing and reviewing can be delegated to cheaper models.
 
@@ -43,6 +45,21 @@ tools = ["Read", "Grep", "Glob"]
 url = "https://open.bigmodel.cn/api/anthropic"
 key = "$GLM_API_KEY"
 model = "glm-5.3"
+
+[agents.branch-cleaner]
+description = """
+Cleans up local git branches of the current project. Use it whenever the user \
+asks to tidy up, prune or delete stale local branches."""
+prompt = """
+You clean up local git branches. Run `git fetch --prune`, then delete local \
+branches that are already merged into the main branch, using `git branch -d` \
+only. Never use `-D`, never delete the current branch or the main branch, and \
+never touch remote branches. Report which branches you deleted and which ones \
+you kept and why."""
+tools = ["Bash"]
+url = "https://api.deepseek.com/anthropic"
+key = "$DEEPSEEK_API_KEY"
+model = "deepseek-flash"
 ```
 
 | Field | Meaning |
