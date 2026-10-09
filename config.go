@@ -64,10 +64,13 @@ const defaultAPI = "anthropic"
 
 var apis = []string{"anthropic", "chat", "responses", "gemini"}
 
-// reservedProviders are subscription providers that will be built in: signed
-// in through cameo, with no key and a fixed endpoint, so they are referenced
+// reservedProviders are subscription providers that are built in: signed in
+// through cameo, with no key and a fixed endpoint, so they are referenced
 // by agents but never defined in the config.
-var reservedProviders = []string{"codex", "antigravity"}
+var reservedProviders = []string{chatgptProvider, "antigravity"}
+
+// builtinProviders are the reserved ones that exist already.
+var builtinProviders = []string{chatgptProvider}
 
 func configPath() (string, error) {
 	if p := os.Getenv("CAMEO_CONFIG"); p != "" {
@@ -169,11 +172,34 @@ func (c *Config) checkAgent(name string, a *Agent) error {
 			return fmt.Errorf("agents.%s: %s is required", name, f.field)
 		}
 	}
+	if slices.Contains(builtinProviders, a.Provider) {
+		return nil
+	}
 	if slices.Contains(reservedProviders, a.Provider) {
 		return fmt.Errorf("agents.%s: provider %q is not supported yet", name, a.Provider)
 	}
 	if c.Providers[a.Provider] == nil {
 		return fmt.Errorf("agents.%s: provider %q is not defined, add a [providers.%s] table", name, a.Provider, a.Provider)
+	}
+	return nil
+}
+
+// checkSignedIn makes sure every built-in provider an agent is served by
+// has a sign-in. loadConfig leaves this out, so that the commands that
+// sign in can read a config whose agents are waiting for it.
+func (c *Config) checkSignedIn(store *authStore) error {
+	for _, name := range sortedKeys(c.Agents) {
+		provider := c.Agents[name].Provider
+		if !slices.Contains(builtinProviders, provider) {
+			continue
+		}
+		in, err := store.load(provider)
+		if err != nil {
+			return err
+		}
+		if in == nil {
+			return fmt.Errorf("agents.%s: provider %q is not signed in, run: cameo provider login %s", name, provider, provider)
+		}
 	}
 	return nil
 }
