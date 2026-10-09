@@ -28,12 +28,24 @@ func main() {
 }
 
 func run(args []string) (int, error) {
+	// Only this one word is cameo's own. Everything else belongs to claude.
+	if len(args) > 0 && args[0] == "provider" {
+		return providerCommand(args[1:], os.Stdin, os.Stdout, os.Stderr)
+	}
+
 	path, err := configPath()
 	if err != nil {
 		return 0, err
 	}
 	cfg, err := loadConfig(path)
 	if err != nil {
+		return 0, err
+	}
+	store, err := openAuthStore()
+	if err != nil {
+		return 0, err
+	}
+	if err := cfg.checkSignedIn(store); err != nil {
 		return 0, err
 	}
 

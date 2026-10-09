@@ -5,7 +5,8 @@
 # upstream = "https://api.anthropic.com"
 
 # Each [providers.<name>] is one credential at one endpoint. Any number of
-# agents can share it. The names codex and antigravity are reserved.
+# agents can share it. The names chatgpt and antigravity are reserved for
+# built-in providers, see the end of this file.
 [providers.deepseek]
 # api is the protocol the endpoint speaks: "anthropic" (the default), "chat"
 # (OpenAI Chat Completions), "responses" (OpenAI Responses) or "gemini".
@@ -83,3 +84,20 @@ you kept and why."""
 tools = ["Bash"]
 provider = "deepseek"
 model = "deepseek-flash"
+
+# The built-in chatgpt provider serves an agent through a ChatGPT
+# subscription, with OpenAI's Sign in with ChatGPT. It has no
+# [providers.chatgpt] table. Sign in first with `cameo provider login
+# chatgpt`, and see which models the account has with `cameo provider models
+# chatgpt`. Whether an account can be used depends on its plan, and usage is
+# shared with ChatGPT itself: https://chatgpt.com/settings/usage
+# [agents.reviewer]
+# description = """
+# Reviews a diff for bugs and unclear code. Use it for a second opinion on \
+# small and medium changes."""
+# prompt = """
+# You review code changes. Report concrete problems with file paths and line \
+# numbers, most serious first. Never modify anything."""
+# tools = ["Read", "Grep", "Glob", "Bash"]
+# provider = "chatgpt"
+# model = "gpt-5.5"

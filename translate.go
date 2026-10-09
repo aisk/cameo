@@ -68,6 +68,12 @@ func (p *Proxy) translate(w http.ResponseWriter, r *http.Request, rt *route, bod
 	}
 
 	res, err := p.send(r.Context(), rt, out)
+	var se *statusError
+	if errors.As(err, &se) {
+		p.logger.Printf("agent %s: %v", rt.agent, err)
+		writeError(w, se.status, errorType(se.status), "cameo: "+se.msg)
+		return
+	}
 	if err != nil {
 		p.handleError(w, r, err)
 		return
@@ -128,18 +134,30 @@ func (p *Proxy) upstreamError(w http.ResponseWriter, rt *route, res *http.Respon
 	if status < 400 {
 		status = http.StatusBadGateway
 	}
+	msg := errorMessage(raw, res.Status)
+	if _, ok := rt.backend.(*chatgptBackend); ok {
+		if more := chatgptExplain(status, raw); more != "" {
+			msg += " (" + more + ")"
+		}
+		if status == http.StatusUnauthorized {
+			// Renewing the tokens did not help, or could not be done.
+			status = signInStatus
+		}
+	}
 	if v := res.Header.Get("Retry-After"); v != "" {
 		w.Header().Set("Retry-After", v)
 	}
-	writeError(w, status, errorType(status), rt.provider+": "+errorMessage(raw, res.Status))
+	writeError(w, status, errorType(status), rt.provider+": "+msg)
 }
 
 // errorMessage digs the message out of an error body. OpenAI and Gemini
-// both answer {"error": {"message": ...}}, and some compatible servers
-// answer a bare string or plain text.
+// both answer {"error": {"message": ...}}, some compatible servers answer
+// a bare string or plain text, and OpenAI answers a ChatGPT sign-in at
+// times with {"detail": ...}, a text or an object with a message.
 func errorMessage(raw []byte, fallback string) string {
 	var body struct {
-		Error json.RawMessage `json:"error"`
+		Error  json.RawMessage `json:"error"`
+		Detail json.RawMessage `json:"detail"`
 	}
 	if json.Unmarshal(raw, &body) == nil && len(body.Error) > 0 {
 		var obj struct {
@@ -151,6 +169,18 @@ func errorMessage(raw []byte, fallback string) string {
 			return obj.Message
 		case json.Unmarshal(body.Error, &text) == nil && text != "":
 			return text
+		}
+	}
+	if len(body.Detail) > 0 {
+		var obj struct {
+			Message string `json:"message"`
+		}
+		var text string
+		switch {
+		case json.Unmarshal(body.Detail, &text) == nil && text != "":
+			return text
+		case json.Unmarshal(body.Detail, &obj) == nil && obj.Message != "":
+			return obj.Message
 		}
 	}
 	if text := strings.TrimSpace(string(raw)); text != "" {

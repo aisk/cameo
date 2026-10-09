@@ -62,6 +62,14 @@ func newProxy(cfg *Config, token string, logger *log.Logger) (*Proxy, error) {
 	}
 	for name, a := range cfg.Agents {
 		b := backends[a.Provider]
+		if b == nil && a.Provider == chatgptProvider {
+			store, err := openAuthStore()
+			if err != nil {
+				return nil, err
+			}
+			b = newChatGPTBackend(store)
+			backends[a.Provider] = b
+		}
 		if b == nil {
 			return nil, fmt.Errorf("agents.%s: provider %q is not defined", name, a.Provider)
 		}

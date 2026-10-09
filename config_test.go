@@ -118,21 +118,22 @@ func TestConfigErrors(t *testing.T) {
 			testProvider + "[agents.helper]\n" + `description = "d"` + "\n" + `prompt = "p"` + "\n" + `model = "m"`,
 			[]string{"agents.helper", "provider is required"},
 		},
-		"reserved codex": {
-			provider("codex", keyed),
-			[]string{"providers.codex", "reserved"},
+		"reserved chatgpt": {
+			provider("chatgpt", keyed) + agent("chatgpt"),
+			[]string{"providers.chatgpt", "reserved"},
 		},
 		"reserved antigravity": {
 			provider("antigravity", keyed),
 			[]string{"providers.antigravity", "reserved"},
 		},
-		"agent on codex": {
-			agent("codex"),
-			[]string{"agents.helper", `"codex"`, "not supported yet"},
-		},
 		"agent on antigravity": {
 			agent("antigravity"),
 			[]string{"agents.helper", `"antigravity"`, "not supported yet"},
+		},
+		// no longer a name with a meaning of its own
+		"agent on codex": {
+			agent("codex"),
+			[]string{"agents.helper", `"codex"`, "not defined"},
 		},
 		"agent url": {
 			testProvider + agent("third") + `url = "https://example.com/anthropic"`,
@@ -174,6 +175,51 @@ func TestConfigErrors(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestBuiltinProvider(t *testing.T) {
+	// An agent names chatgpt with no table for it, signed in or not.
+	cfg, err := loadConfig(writeFile(t, agent("chatgpt")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Providers) != 0 || cfg.Agents["helper"].Provider != "chatgpt" {
+		t.Errorf("cfg = %+v", cfg)
+	}
+
+	tempAuth(t)
+	store, _ := openAuthStore()
+	err = cfg.checkSignedIn(store)
+	for _, want := range []string{"agents.helper", `"chatgpt"`, "not signed in", "cameo provider login chatgpt"} {
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("err = %v, want it to mention %q", err, want)
+		}
+	}
+	saveSignIn(t, testSignIn(time1h()))
+	if err := cfg.checkSignedIn(store); err != nil {
+		t.Errorf("signed in: %v", err)
+	}
+
+	// A config that does not use it needs no sign-in.
+	tempAuth(t)
+	store, _ = openAuthStore()
+	cfg, _ = loadConfig(writeFile(t, testProvider+agent("third")))
+	if err := cfg.checkSignedIn(store); err != nil {
+		t.Errorf("not used: %v", err)
+	}
+}
+
+// codex was reserved once and is a name like any other now.
+func TestCodexIsFreeToUse(t *testing.T) {
+	_, err := loadConfig(writeFile(t, `
+[providers.codex]
+api = "responses"
+url = "https://api.openai.com/v1"
+key = "k"
+`+agent("codex")))
+	if err != nil {
+		t.Error(err)
 	}
 }
 
