@@ -16,6 +16,9 @@ decoded into `Event` values, which are either encoded as another protocol's
 server-sent events or collected into a `Result` and rendered as a whole reply
 body.
 
+It is a fork of the gateway code of [magpie](https://github.com/yetone/magpie),
+with changes to fit cameo.
+
 It depends on the standard library and `github.com/tidwall/gjson`.
 
 ## Usage

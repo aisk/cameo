@@ -135,3 +135,7 @@ Agents on an `anthropic` provider are forwarded as they are. For `chat`, `respon
 - Prompt cache breakpoints (`cache_control`) are not forwarded. Whatever caching happens is the provider's own automatic caching.
 - Anthropic server tools are dropped, since the provider cannot run them. Web search is the one exception, and only where the provider has its own: the built-in web search on `responses`, Google Search on `gemini` when the request offers no other tools, and the web plugin of OpenRouter on `chat`. On any other `chat` provider web search is dropped as well.
 - Token counting (`/v1/messages/count_tokens`) is answered by cameo with a rough estimate from the size of the request, not a real count.
+
+## Acknowledgements
+
+The protocol translation lives in the [`llmconv`](llmconv) package, a fork of the gateway code of [magpie](https://github.com/yetone/magpie) with changes to fit cameo.
