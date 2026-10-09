@@ -4,8 +4,44 @@
 # $ANTHROPIC_BASE_URL if set, otherwise https://api.anthropic.com.
 # upstream = "https://api.anthropic.com"
 
+# Each [providers.<name>] is one credential at one endpoint. Any number of
+# agents can share it. The names codex and antigravity are reserved.
+[providers.deepseek]
+# api is the protocol the endpoint speaks: "anthropic" (the default), "chat"
+# (OpenAI Chat Completions), "responses" (OpenAI Responses) or "gemini".
+# api = "anthropic"
+# For anthropic, url is the value you would put in ANTHROPIC_BASE_URL.
+url = "https://api.deepseek.com/anthropic"
+# Environment variables are expanded.
+key = "$DEEPSEEK_API_KEY"
+
+[providers.glm]
+url = "https://open.bigmodel.cn/api/anthropic"
+key = "$GLM_API_KEY"
+
+# For the other protocols cameo translates requests and replies, and appends
+# the endpoint to url itself.
+
+# Requests go to <url>/chat/completions.
+# [providers.openrouter]
+# api = "chat"
+# url = "https://openrouter.ai/api/v1"
+# key = "$OPENROUTER_API_KEY"
+
+# Requests go to <url>/responses.
+# [providers.openai]
+# api = "responses"
+# url = "https://api.openai.com/v1"
+# key = "$OPENAI_API_KEY"
+
+# Requests go to <url>/models/<model>:streamGenerateContent?alt=sse.
+# [providers.google]
+# api = "gemini"
+# url = "https://generativelanguage.googleapis.com/v1beta"
+# key = "$GEMINI_API_KEY"
+
 # Each [agents.<name>] becomes a Claude Code subagent called <name>, served by
-# an Anthropic-compatible provider.
+# the provider it names.
 [agents.cheap-general]
 description = """
 General purpose agent for multi-step tasks: researching questions, searching \
@@ -15,8 +51,7 @@ enough, fall back to general-purpose."""
 prompt = """
 You are a general purpose software engineering agent. Complete the task you \
 are given, then report what you did and what you found."""
-url = "https://api.deepseek.com/anthropic"
-key = "$DEEPSEEK_API_KEY"
+provider = "deepseek"
 model = "deepseek-flash"
 
 [agents.cheap-explore]
@@ -30,8 +65,7 @@ You are a read-only codebase exploration agent. Find what you are asked for \
 and report it with file paths and line numbers. Never modify anything."""
 # Optional. Inherits all tools when omitted.
 tools = ["Read", "Grep", "Glob"]
-url = "https://open.bigmodel.cn/api/anthropic"
-key = "$GLM_API_KEY"
+provider = "glm"
 model = "glm-5.3"
 # Optional. Set if the model has a 1M token context window.
 # context_1m = true
@@ -47,6 +81,5 @@ only. Never use `-D`, never delete the current branch or the main branch, and \
 never touch remote branches. Report which branches you deleted and which ones \
 you kept and why."""
 tools = ["Bash"]
-url = "https://api.deepseek.com/anthropic"
-key = "$DEEPSEEK_API_KEY"
+provider = "deepseek"
 model = "deepseek-flash"

@@ -1,5 +1,5 @@
 // Command cameo runs Claude Code behind a local proxy that lets subagents be
-// served by third-party, Anthropic-compatible providers.
+// served by third-party providers.
 package main
 
 import (

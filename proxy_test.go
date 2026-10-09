@@ -33,8 +33,11 @@ func setup(t *testing.T) (proxyURL string, upstream, provider *captured) {
 	upstream, provider = new(captured), new(captured)
 	cfg := &Config{
 		Upstream: capture(t, upstream).URL,
+		Providers: map[string]*Provider{
+			"third": {API: "anthropic", URL: capture(t, provider).URL + "/anthropic", Key: "provider-key"},
+		},
 		Agents: map[string]*Agent{
-			"helper": {URL: capture(t, provider).URL + "/anthropic", Key: "provider-key", Model: "third-party-model"},
+			"helper": {Provider: "third", Model: "third-party-model"},
 		},
 	}
 	p, err := newProxy(cfg, "secret", log.New(io.Discard, "", 0))
@@ -51,6 +54,8 @@ func post(t *testing.T, url, body string) *http.Response {
 	req, _ := http.NewRequest(http.MethodPost, url, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer claude-token")
+	req.Header.Set("Cookie", "session=claude")
+	req.Header.Set("Anthropic-Version", "2023-06-01")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -104,6 +109,13 @@ func TestAgentModelGoesToProvider(t *testing.T) {
 	if got := provider.header.Get("X-Api-Key"); got != "provider-key" {
 		t.Errorf("X-Api-Key = %q", got)
 	}
+	if got := provider.header.Get("Cookie"); got != "" {
+		t.Errorf("Cookie = %q", got)
+	}
+	// An Anthropic-compatible provider still gets the client's own headers.
+	if got := provider.header.Get("Anthropic-Version"); got != "2023-06-01" {
+		t.Errorf("Anthropic-Version = %q", got)
+	}
 }
 
 func TestAgentModelWith1MSuffix(t *testing.T) {
@@ -128,5 +140,15 @@ func TestRejectsMissingToken(t *testing.T) {
 	}
 	if upstream.path != "" || provider.path != "" {
 		t.Error("request was forwarded")
+	}
+}
+
+func TestUnknownProviderInRoute(t *testing.T) {
+	cfg := &Config{
+		Upstream: "https://api.anthropic.com",
+		Agents:   map[string]*Agent{"helper": {Provider: "missing", Model: "m"}},
+	}
+	if _, err := newProxy(cfg, "secret", log.New(io.Discard, "", 0)); err == nil || !strings.Contains(err.Error(), "missing") {
+		t.Errorf("err = %v", err)
 	}
 }

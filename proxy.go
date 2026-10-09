@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"mime"
@@ -11,13 +12,16 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
+
+	"github.com/aisk/cameo/llmconv"
 )
 
 // route describes where requests for one cameo subagent go.
 type route struct {
-	agent string
-	url   *url.URL
-	key   string
+	agent    string
+	provider string
+	backend  backend
+	// model is the model name at the provider.
 	model string
 }
 
@@ -32,6 +36,8 @@ type Proxy struct {
 	prefix string
 	logger *log.Logger
 	rp     *httputil.ReverseProxy
+	// client sends the translated requests.
+	client *http.Client
 }
 
 func newProxy(cfg *Config, token string, logger *log.Logger) (*Proxy, error) {
@@ -44,13 +50,22 @@ func newProxy(cfg *Config, token string, logger *log.Logger) (*Proxy, error) {
 		routes:   make(map[string]*route),
 		prefix:   "/" + token,
 		logger:   logger,
+		client:   newUpstreamClient(),
+	}
+	backends := make(map[string]backend, len(cfg.Providers))
+	for name, pr := range cfg.Providers {
+		b, err := newBackend(pr)
+		if err != nil {
+			return nil, fmt.Errorf("providers.%s: %w", name, err)
+		}
+		backends[name] = b
 	}
 	for name, a := range cfg.Agents {
-		u, err := url.Parse(a.URL)
-		if err != nil {
-			return nil, err
+		b := backends[a.Provider]
+		if b == nil {
+			return nil, fmt.Errorf("agents.%s: provider %q is not defined", name, a.Provider)
 		}
-		p.routes[modelPrefix+name] = &route{agent: name, url: u, key: a.Key, model: a.Model}
+		p.routes[modelPrefix+name] = &route{agent: name, provider: a.Provider, backend: b, model: a.Model}
 	}
 	p.rp = &httputil.ReverseProxy{
 		Rewrite:       p.rewrite,
@@ -70,35 +85,42 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.URL.Path = path
 	r.URL.RawPath = ""
 
-	rt, err := p.match(r)
+	rt, body, err := p.match(r)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	if rt != nil {
-		p.logger.Printf("%s %s -> agent %s (%s)", r.Method, path, rt.agent, rt.model)
-		r = r.WithContext(context.WithValue(r.Context(), routeKey{}, rt))
-	} else {
+	switch {
+	case rt == nil:
 		p.logger.Printf("%s %s -> upstream", r.Method, path)
+		p.rp.ServeHTTP(w, r)
+	case rt.backend.api() == llmconv.Anthropic:
+		p.logger.Printf("%s %s -> agent %s (%s)", r.Method, path, rt.agent, rt.model)
+		if err := setModel(r, body, rt.model); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_request_error", err.Error())
+			return
+		}
+		p.rp.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), routeKey{}, rt)))
+	default:
+		p.logger.Printf("%s %s -> agent %s (%s, %s)", r.Method, path, rt.agent, rt.model, rt.backend.api())
+		p.translate(w, r, rt, body)
 	}
-	p.rp.ServeHTTP(w, r)
 }
 
-// match reports which subagent a request belongs to, or nil if it should go
-// to the upstream as is. For a matched request the body is replaced by one
-// carrying the provider's model name.
-func (p *Proxy) match(r *http.Request) (*route, error) {
+// match reports which subagent a request belongs to, with the body it read
+// to find out, or nil if the request should go to the upstream as is.
+func (p *Proxy) match(r *http.Request) (*route, []byte, error) {
 	if r.Method != http.MethodPost || r.Body == nil || r.Header.Get("Content-Encoding") != "" {
-		return nil, nil
+		return nil, nil, nil
 	}
 	if mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); mt != "application/json" {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	body, err := io.ReadAll(r.Body)
 	r.Body.Close()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	setBody(r, body)
 
@@ -106,25 +128,25 @@ func (p *Proxy) match(r *http.Request) (*route, error) {
 		Model string `json:"model"`
 	}
 	if json.Unmarshal(body, &head) != nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	// Claude Code may or may not strip the 1M suffix before sending.
-	rt := p.routes[strings.TrimSuffix(head.Model, context1M)]
-	if rt == nil {
-		return nil, nil
-	}
+	return p.routes[strings.TrimSuffix(head.Model, context1M)], body, nil
+}
 
+// setModel replaces the request body by one asking for the provider's model.
+func setModel(r *http.Request, body []byte, model string) error {
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(body, &fields); err != nil {
-		return nil, err
+		return err
 	}
-	fields["model"], _ = json.Marshal(rt.model)
-	body, err = json.Marshal(fields)
+	fields["model"], _ = json.Marshal(model)
+	body, err := json.Marshal(fields)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	setBody(r, body)
-	return rt, nil
+	return nil
 }
 
 func setBody(r *http.Request, body []byte) {
@@ -138,12 +160,14 @@ func (p *Proxy) rewrite(pr *httputil.ProxyRequest) {
 		pr.SetURL(p.upstream)
 		return
 	}
-	pr.SetURL(rt.url)
+	// Only a key backend speaks Anthropic, see newBackend.
+	kb := rt.backend.(*keyBackend)
+	pr.SetURL(kb.url)
 	// Never leak the Anthropic credentials to a third party. Providers
 	// differ in which header they read, so send the key in both.
 	pr.Out.Header.Del("Cookie")
-	pr.Out.Header.Set("X-Api-Key", rt.key)
-	pr.Out.Header.Set("Authorization", "Bearer "+rt.key)
+	pr.Out.Header.Set("X-Api-Key", kb.key)
+	pr.Out.Header.Set("Authorization", "Bearer "+kb.key)
 }
 
 func (p *Proxy) handleError(w http.ResponseWriter, r *http.Request, err error) {
