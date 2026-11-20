@@ -251,6 +251,29 @@ func TestChatGPTUnauthorized(t *testing.T) {
 	}
 }
 
+// A renewal that does not get through says nothing of the sign-in: the
+// client hears of the failure, not that it has to sign in again.
+func TestChatGPTUnauthorizedRenewalFails(t *testing.T) {
+	auth := newFakeAuth(t)
+	auth.refuseStatus = http.StatusBadGateway
+	tempAuth(t)
+	saveSignIn(t, testSignIn(time1h()))
+	c := newChatGPT(t)
+	c.reply = func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusUnauthorized) }
+
+	resp := ask(t, context.Background(), c.url+"/v1/messages", firstTurn)
+	reply := gjson.Parse(readAll(t, resp))
+	if resp.StatusCode != http.StatusBadGateway || reply.Get("error.type").String() != "api_error" {
+		t.Errorf("status %d: %s", resp.StatusCode, reply.Raw)
+	}
+	if msg := reply.Get("error.message").String(); !strings.Contains(msg, "ChatGPT token refresh") || strings.Contains(msg, "provider login") {
+		t.Errorf("message = %q", msg)
+	}
+	if c.asked() != 1 {
+		t.Errorf("%d requests, want 1", c.asked())
+	}
+}
+
 // When renewing does not help, the request is not sent a third time, and
 // the client is not told its own login is bad.
 func TestChatGPTStillUnauthorized(t *testing.T) {

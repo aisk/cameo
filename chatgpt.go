@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -49,9 +50,15 @@ func (b *chatgptBackend) request(ctx context.Context, model string, body []byte)
 	return req, nil
 }
 
-// unauthorized renews the tokens OpenAI turned away. When that fails the
-// 401 stands, and upstreamError says what to do about it.
-func (b *chatgptBackend) unauthorized(ctx context.Context) bool {
+// unauthorized renews the tokens OpenAI turned away. When OpenAI refuses
+// that too the 401 stands, and upstreamError says what to do about it. A
+// renewal that did not get through is no word on the sign-in, and is the
+// failure to report.
+func (b *chatgptBackend) unauthorized(ctx context.Context) (bool, error) {
 	_, err := b.account.refresh(ctx, true)
-	return err == nil
+	var se *statusError
+	if err != nil && !errors.As(err, &se) {
+		return false, err
+	}
+	return err == nil, nil
 }

@@ -80,6 +80,14 @@ func newProxy(cfg *Config, token string, logger *log.Logger) (*Proxy, error) {
 		FlushInterval: -1,
 		ErrorLog:      logger,
 		ErrorHandler:  p.handleError,
+		ModifyResponse: func(res *http.Response) error {
+			// The upstream's statuses are the client's own. A provider's
+			// are not.
+			if rt, _ := res.Request.Context().Value(routeKey{}).(*route); rt != nil {
+				res.StatusCode = asProvider(res.StatusCode)
+			}
+			return nil
+		},
 	}
 	return p, nil
 }

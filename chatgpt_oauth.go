@@ -150,6 +150,12 @@ func (f *loginFlow) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // this sign-in's, trades its code for the tokens. It answers what to tell
 // the person at the browser.
 func (f *loginFlow) callback(ctx context.Context, q url.Values) (ok bool, title, msg string) {
+	const notOurs, again = "This link isn't from cameo's sign-in", "Start it again with cameo provider login chatgpt."
+	if q.Get("state") != f.state {
+		// Not ours: someone else's page, or a stale tab. The sign-in goes
+		// on waiting for its own, whatever this one says, a refusal too.
+		return false, notOurs, again
+	}
 	if e := q.Get("error"); e != "" {
 		msg := q.Get("error_description")
 		if msg == "" {
@@ -158,10 +164,8 @@ func (f *loginFlow) callback(ctx context.Context, q url.Values) (ok bool, title,
 		f.finish(nil, errors.New(msg))
 		return false, "Sign-in didn't finish", msg
 	}
-	if q.Get("state") != f.state || q.Get("code") == "" {
-		// Not ours: someone else's page, or a stale tab. The sign-in goes
-		// on waiting for its own.
-		return false, "This link isn't from cameo's sign-in", "Start it again with cameo provider login chatgpt."
+	if q.Get("code") == "" {
+		return false, notOurs, again
 	}
 	claimed := false
 	f.claim.Do(func() { claimed = true })

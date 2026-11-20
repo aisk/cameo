@@ -9,7 +9,8 @@ import (
 )
 
 // signInStatus is the status Claude Code is answered with when the ChatGPT
-// sign-in is missing or no longer good. Not 401, which Claude Code takes
+// sign-in is missing or no longer good, or a provider turns its key down.
+// Not 401, which Claude Code takes
 // as its own Anthropic login having gone bad and answers by sending the
 // user to /login, and not 403, which it may read as that login revoked.
 // Not a 5xx or 429 either, which it retries for minutes. A 400 is shown

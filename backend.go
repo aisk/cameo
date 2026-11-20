@@ -25,8 +25,10 @@ type backend interface {
 	request(ctx context.Context, model string, body []byte) (*http.Request, error)
 	// unauthorized is called when the upstream answers 401. It reports
 	// whether the request is worth sending once more, which is how a
-	// backend with a token that expires gets to refresh it.
-	unauthorized(ctx context.Context) bool
+	// backend with a token that expires gets to refresh it. An error is a
+	// renewal that could not be tried, which says nothing of the
+	// credential: it is answered with in place of the 401.
+	unauthorized(ctx context.Context) (retry bool, err error)
 }
 
 func newBackend(p *Provider) (backend, error) {
@@ -94,7 +96,7 @@ func (b *keyBackend) request(ctx context.Context, model string, body []byte) (*h
 }
 
 // unauthorized has nothing to try again with: a key is right or it is not.
-func (b *keyBackend) unauthorized(context.Context) bool { return false }
+func (b *keyBackend) unauthorized(context.Context) (bool, error) { return false, nil }
 
 // withoutField drops one top-level field of a JSON object.
 func withoutField(body []byte, field string) []byte {

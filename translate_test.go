@@ -465,7 +465,7 @@ func TestUpstreamErrors(t *testing.T) {
 		message string
 	}{
 		{400, openAIError, "invalid_request_error", "the provider said no"},
-		{401, openAIError, "authentication_error", "the provider said no"},
+		{401, openAIError, "invalid_request_error", "check the key of [providers."},
 		{403, openAIError, "permission_error", "the provider said no"},
 		{404, openAIError, "not_found_error", "the provider said no"},
 		{413, openAIError, "request_too_large", "the provider said no"},
@@ -484,7 +484,8 @@ func TestUpstreamErrors(t *testing.T) {
 		resp := ask(t, context.Background(), tr.url+"/v1/messages", messagesRequest)
 		reply := gjson.Parse(readAll(t, resp))
 
-		if resp.StatusCode != tc.status {
+		// A 401 would be taken by Claude Code for its own login.
+		if resp.StatusCode != asProvider(tc.status) {
 			t.Errorf("%d: status = %d", tc.status, resp.StatusCode)
 		}
 		if ct := resp.Header.Get("Content-Type"); ct != "application/json" {
@@ -678,9 +679,9 @@ type refreshing struct {
 	refreshes atomic.Int32
 }
 
-func (b *refreshing) unauthorized(context.Context) bool {
+func (b *refreshing) unauthorized(context.Context) (bool, error) {
 	b.refreshes.Add(1)
-	return true
+	return true, nil
 }
 
 func TestUnauthorizedIsRetriedOnce(t *testing.T) {
@@ -690,7 +691,7 @@ func TestUnauthorizedIsRetriedOnce(t *testing.T) {
 		calls      int32
 	}{
 		"refresh helps":   {1, http.StatusOK, 2},
-		"refresh is vain": {5, http.StatusUnauthorized, 2},
+		"refresh is vain": {5, signInStatus, 2},
 	} {
 		t.Run(name, func(t *testing.T) {
 			var calls atomic.Int32
@@ -724,7 +725,7 @@ func TestKeyBackendDoesNotRetry(t *testing.T) {
 		w.WriteHeader(http.StatusUnauthorized)
 	})
 	resp := ask(t, context.Background(), tr.url+"/v1/messages", messagesRequest)
-	if resp.StatusCode != http.StatusUnauthorized || calls.Load() != 1 {
+	if resp.StatusCode != signInStatus || calls.Load() != 1 {
 		t.Errorf("status %d after %d calls", resp.StatusCode, calls.Load())
 	}
 }

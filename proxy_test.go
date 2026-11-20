@@ -152,3 +152,33 @@ func TestUnknownProviderInRoute(t *testing.T) {
 		t.Errorf("err = %v", err)
 	}
 }
+
+// A provider turning its key down is not Claude Code's login gone bad, and
+// the upstream's own 401 is left as it is.
+func TestProviderUnauthorized(t *testing.T) {
+	deny := func() string {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+		}))
+		t.Cleanup(srv.Close)
+		return srv.URL
+	}
+	cfg := &Config{
+		Upstream:  deny(),
+		Providers: map[string]*Provider{"third": {API: "anthropic", URL: deny(), Key: "provider-key"}},
+		Agents:    map[string]*Agent{"helper": {Provider: "third", Model: "third-party-model"}},
+	}
+	p, err := newProxy(cfg, "secret", log.New(io.Discard, "", 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(p)
+	t.Cleanup(srv.Close)
+
+	if resp := post(t, srv.URL+"/secret/v1/messages", `{"model":"cameo-helper"}`); resp.StatusCode != signInStatus {
+		t.Errorf("provider: status %d", resp.StatusCode)
+	}
+	if resp := post(t, srv.URL+"/secret/v1/messages", `{"model":"claude-sonnet-4-5"}`); resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("upstream: status %d", resp.StatusCode)
+	}
+}

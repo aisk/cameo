@@ -110,7 +110,15 @@ func (p *Proxy) send(ctx context.Context, rt *route, body []byte) (*http.Respons
 		if err != nil {
 			return nil, err
 		}
-		if res.StatusCode != http.StatusUnauthorized || retried || !rt.backend.unauthorized(ctx) {
+		if res.StatusCode != http.StatusUnauthorized || retried {
+			return res, nil
+		}
+		retry, err := rt.backend.unauthorized(ctx)
+		if err != nil {
+			res.Body.Close()
+			return nil, err
+		}
+		if !retry {
 			return res, nil
 		}
 		res.Body.Close()
@@ -139,11 +147,11 @@ func (p *Proxy) upstreamError(w http.ResponseWriter, rt *route, res *http.Respon
 		if more := chatgptExplain(status, raw); more != "" {
 			msg += " (" + more + ")"
 		}
-		if status == http.StatusUnauthorized {
-			// Renewing the tokens did not help, or could not be done.
-			status = signInStatus
-		}
+	} else if status == http.StatusUnauthorized {
+		msg += " (check the key of [providers." + rt.provider + "] in the config)"
 	}
+	// The provider's credential is not the client's, see signInStatus.
+	status = asProvider(status)
 	if v := res.Header.Get("Retry-After"); v != "" {
 		w.Header().Set("Retry-After", v)
 	}
@@ -187,6 +195,15 @@ func errorMessage(raw []byte, fallback string) string {
 		return text
 	}
 	return fallback
+}
+
+// asProvider is the status the client gets for a provider's. A 401 is about
+// the credential cameo sent, never the client's own, see signInStatus.
+func asProvider(status int) int {
+	if status == http.StatusUnauthorized {
+		return signInStatus
+	}
+	return status
 }
 
 func errorType(status int) string {

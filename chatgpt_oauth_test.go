@@ -154,9 +154,19 @@ func TestCallback(t *testing.T) {
 			t.Errorf("outcome %+v, over %v", res, over)
 		}
 		f = flow(auth)
-		get(f, "/auth/callback?error=access_denied")
+		get(f, "/auth/callback?error=access_denied&state="+f.state)
 		if res, _ := outcome(f); res.err == nil || res.err.Error() != "access_denied" {
 			t.Errorf("outcome %+v", res)
+		}
+		// A refusal without this sign-in's state is anybody's, and ends nothing.
+		f = flow(auth)
+		for _, q := range []string{"error=access_denied", "error=access_denied&state=other"} {
+			if rec := get(f, "/auth/callback?"+q); rec.Code != http.StatusBadRequest {
+				t.Errorf("%s: status %d", q, rec.Code)
+			}
+		}
+		if res, over := outcome(f); over {
+			t.Errorf("a refusal that isn't this sign-in's ended it: %+v", res)
 		}
 	})
 
