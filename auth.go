@@ -71,7 +71,11 @@ func newAuthStore(path string) *authStore {
 
 func (s *authStore) read() (map[string]json.RawMessage, error) {
 	entries := map[string]json.RawMessage{}
-	raw, err := os.ReadFile(s.path)
+	var raw []byte
+	err := retryBusy(func() (err error) {
+		raw, err = os.ReadFile(s.path)
+		return err
+	})
 	if errors.Is(err, fs.ErrNotExist) || (err == nil && len(bytes.TrimSpace(raw)) == 0) {
 		return entries, nil
 	}
@@ -173,18 +177,27 @@ func (s *authStore) write(entries map[string]json.RawMessage) error {
 	return err
 }
 
-// replaceFile renames from over to. Windows refuses that for the moment
-// another process has to open, which a reader does without the lock, so it
-// is tried a few times.
+// replaceFile renames from over to.
 func replaceFile(from, to string) error {
-	var err error
-	for range 10 {
-		if err = os.Rename(from, to); err == nil {
-			return nil
+	return retryBusy(func() error { return os.Rename(from, to) })
+}
+
+// busyWait bounds how long a file another process has open is waited for.
+var busyWait = 5 * time.Second
+
+// retryBusy calls op until it no longer fails for the file being in use,
+// or busyWait is over. Only Windows minds: it refuses to replace a file for
+// the moment a reader has it open, which a reader does without the lock,
+// and refuses the reader for the moment the file is being replaced.
+func retryBusy(op func() error) error {
+	deadline := time.Now().Add(busyWait)
+	for wait := time.Millisecond; ; wait = min(2*wait, lockPoll) {
+		err := op()
+		if err == nil || !fileBusy(err) || time.Now().After(deadline) {
+			return err
 		}
-		time.Sleep(lockPoll)
+		time.Sleep(wait)
 	}
-	return err
 }
 
 // lockFile takes the lock every cameo process changing the file next to it

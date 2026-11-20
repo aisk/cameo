@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"syscall"
 	"unsafe"
@@ -12,8 +13,16 @@ var procLockFileEx = syscall.NewLazyDLL("kernel32.dll").NewProc("LockFileEx")
 const (
 	lockfileFailImmediately = 0x1
 	lockfileExclusiveLock   = 0x2
+	errorSharingViolation   = syscall.Errno(32)
 	errorLockViolation      = syscall.Errno(33)
 )
+
+// fileBusy says whether err is another process having the file open, or
+// replacing it, which is over in a moment.
+func fileBusy(err error) bool {
+	return errors.Is(err, errorSharingViolation) || errors.Is(err, errorLockViolation) ||
+		errors.Is(err, syscall.ERROR_ACCESS_DENIED)
+}
 
 // tryLock takes the exclusive lock on f if nobody holds it.
 func tryLock(f *os.File) (bool, error) {

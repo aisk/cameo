@@ -18,3 +18,7 @@ func tryLock(f *os.File) (bool, error) {
 		return false, err
 	}
 }
+
+// fileBusy says whether err is another process having the file open, which
+// stops nobody on this system.
+func fileBusy(error) bool { return false }

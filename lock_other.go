@@ -12,3 +12,7 @@ import (
 func tryLock(*os.File) (bool, error) {
 	return false, errors.New("file locking is not supported on this system")
 }
+
+// fileBusy says whether err is another process having the file open, which
+// stops nobody on this system.
+func fileBusy(error) bool { return false }
