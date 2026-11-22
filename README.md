@@ -153,7 +153,7 @@ An agent can run on another Claude subscription, for example a second Pro or Max
 claude setup-token
 ```
 
-It prints a token starting with `sk-ant-oat`. Put it in a provider on the Anthropic API:
+It opens a browser to sign in. Sign in there with the account the agent should use, which does not have to be the one Claude Code is signed in to. The token is tied to the account you sign in with in the browser, so you can run this from any machine or Claude Code install, and it leaves the current session signed in as before. It prints a token starting with `sk-ant-oat`. Put it in a provider on the Anthropic API:
 
 ```toml
 [providers.claude-b]

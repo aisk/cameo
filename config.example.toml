@@ -20,8 +20,9 @@ key = "$DEEPSEEK_API_KEY"
 url = "https://open.bigmodel.cn/api/anthropic"
 key = "$GLM_API_KEY"
 
-# A second Claude subscription. Create the token with `claude setup-token`
-# while signed in to that account. cameo sends a token starting with
+# A second Claude subscription. Create the token with `claude setup-token`,
+# signing in to that account in the browser it opens. This can run from any
+# Claude Code install and does not sign the current session out. cameo sends a token starting with
 # sk-ant-oat as a bearer token with the OAuth beta Anthropic requires.
 # [providers.claude-b]
 # url = "https://api.anthropic.com"
