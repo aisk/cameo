@@ -182,3 +182,40 @@ func TestProviderUnauthorized(t *testing.T) {
 		t.Errorf("upstream: status %d", resp.StatusCode)
 	}
 }
+
+func TestSubscriptionTokenIsBearerOnly(t *testing.T) {
+	var provider captured
+	cfg := &Config{
+		Upstream:  capture(t, new(captured)).URL,
+		Providers: map[string]*Provider{"x": {API: "anthropic", URL: capture(t, &provider).URL, Key: "sk-ant-oat01-test"}},
+		Agents:    map[string]*Agent{"b": {Provider: "x", Model: "m"}},
+	}
+	p, err := newProxy(cfg, "secret", log.New(io.Discard, "", 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(p)
+	t.Cleanup(srv.Close)
+	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/secret/v1/messages", strings.NewReader(`{"model":"cameo-b","max_tokens":1}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Api-Key", "client-key")
+	req.Header.Set("Anthropic-Beta", "claude-code-20250219")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("status %d: %s", resp.StatusCode, b)
+	}
+	if got := provider.header.Get("X-Api-Key"); got != "" {
+		t.Errorf("X-Api-Key = %q", got)
+	}
+	if got := provider.header.Get("Authorization"); got != "Bearer sk-ant-oat01-test" {
+		t.Errorf("Authorization = %q", got)
+	}
+	if got := provider.header.Get("Anthropic-Beta"); got != "claude-code-20250219,oauth-2025-04-20" {
+		t.Errorf("Anthropic-Beta = %q", got)
+	}
+}

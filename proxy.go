@@ -180,10 +180,19 @@ func (p *Proxy) rewrite(pr *httputil.ProxyRequest) {
 	kb := rt.backend.(*keyBackend)
 	pr.SetURL(kb.url)
 	// Never leak the Anthropic credentials to a third party. Providers
-	// differ in which header they read, so send the key in both.
+	// differ in which header they read, so send the key in both, except a
+	// Claude subscription token (claude setup-token): Anthropic rejects it as
+	// X-Api-Key and only takes it as a bearer token with the OAuth beta.
 	pr.Out.Header.Del("Cookie")
-	pr.Out.Header.Set("X-Api-Key", kb.key)
 	pr.Out.Header.Set("Authorization", "Bearer "+kb.key)
+	if strings.HasPrefix(kb.key, "sk-ant-oat") {
+		pr.Out.Header.Del("X-Api-Key")
+		if !strings.Contains(pr.Out.Header.Get("Anthropic-Beta"), "oauth-2025-04-20") {
+			pr.Out.Header.Set("Anthropic-Beta", strings.Trim(pr.Out.Header.Get("Anthropic-Beta")+",oauth-2025-04-20", ","))
+		}
+		return
+	}
+	pr.Out.Header.Set("X-Api-Key", kb.key)
 }
 
 func (p *Proxy) handleError(w http.ResponseWriter, r *http.Request, err error) {
