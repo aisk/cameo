@@ -147,7 +147,7 @@ Things to know:
 
 ## Second Claude subscription
 
-An agent can run on another Claude subscription, for example a second Pro or Max account, so its usage counts against that account's limit instead of the one of the main session. Create a long-lived token while signed in to the other account:
+An agent can run on another Claude subscription, for example a second Pro or Max account, so its usage counts against that account's limit instead of the one of the main session. Create a long-lived token for the other account:
 
 ```bash
 claude setup-token
