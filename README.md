@@ -145,6 +145,39 @@ Things to know:
 - `cameo provider logout chatgpt` removes the sign-in and asks OpenAI to revoke it.
 - cameo will not start while an agent uses `chatgpt` and nobody is signed in.
 
+## Second Claude subscription
+
+An agent can run on another Claude subscription, for example a second Pro or Max account, so its usage counts against that account's limit instead of the one of the main session. Create a long-lived token while signed in to the other account:
+
+```bash
+claude setup-token
+```
+
+It prints a token starting with `sk-ant-oat`. Put it in a provider on the Anthropic API:
+
+```toml
+[providers.claude-b]
+url = "https://api.anthropic.com"
+key = "$CLAUDE_B_TOKEN"
+
+[agents.opus-b]
+description = """
+Same role as the default general-purpose agent, but runs on the second Claude \
+account. Use it when the user asks for the B agent."""
+prompt = """
+You are a general purpose software engineering agent. Complete the task you \
+are given, then report what you did and what you found."""
+provider = "claude-b"
+model = "claude-opus-5-5"
+```
+
+```bash
+export CLAUDE_B_TOKEN="sk-ant-oat01-..."
+cameo
+```
+
+cameo recognizes such a token by its `sk-ant-oat` prefix. It sends it only as `Authorization: Bearer`, never as `X-Api-Key`, which Anthropic rejects for these tokens, and adds the `oauth-2025-04-20` beta that they need. Any other key is sent as before.
+
 ## Run
 
 ```bash
